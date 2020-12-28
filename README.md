@@ -1,2 +1,2 @@
-# pic-browser
+# pickled-brownies
 PyQt picture browser / manager
