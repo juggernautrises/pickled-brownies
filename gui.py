@@ -1,28 +1,46 @@
+import subprocess
 import sys
 from PyQt5.QtWidgets import (
     QMainWindow, QApplication, QHBoxLayout,
     QVBoxLayout, QWidget, QPushButton,
-    QSpacerItem, QSizePolicy, QCheckBox, QLabel
+    QSpacerItem, QSizePolicy, QCheckBox, QLabel, QMenuBar, QMenu, QAction
 )
 from PyQt5.QtGui import QPixmap
-from PyQt5.QtCore import Qt
-
+from PyQt5.QtCore import Qt, QTimer
+import datetime
 MAX_IMAGE_HEIGHT = 600
-
+SLIDESHOW_INTERVAL = 1000
+MIN_SLIDESHOW_INTERVAL = 1000
+SLIDESHOW_INCREMENT = 500
+PLATFORMS = {'darwin': 'open'}
 
 class PicBrowserGui(QMainWindow):
 
     def __init__(self, images=None):
         super().__init__()
+        self.platform = sys.platform
         self.images = images
         self.screen = QApplication.primaryScreen()
         self.screen_size = self.screen.size()
         self.screen_width = self.screen_size.width() - 100
         self.screen_height = self.screen_size.height() - 100
+        self.time_interval = SLIDESHOW_INTERVAL
+        self.num_increments = 0
         self._init_ui()
 
     def _init_ui(self):
-        # self.resize(self.screen_width, self.screen_height)
+        self.menuBar = QMenuBar(self)
+        self.menuBar.setNativeMenuBar(False)
+        file_menu = QMenu(' &Stuff', self)
+        shuffle_action = QAction("Shuffle          ctrl+r", self)
+        slideshow_action = QAction("Slideshow     ctrl+f", self)
+        shuffle_action.triggered.connect(self.shuffle)
+        slideshow_action.triggered.connect(self.start_slideshow)
+        file_menu.addAction(shuffle_action)
+        file_menu.addAction(slideshow_action)
+        self.menuBar.addMenu(file_menu)
+        self.setMenuBar(self.menuBar)
+
         self.central_widget = QWidget(self)
         self.main_layout = QVBoxLayout()
 
@@ -37,28 +55,102 @@ class PicBrowserGui(QMainWindow):
         self.prev_button = QPushButton()
         self.prev_button.setText("Previous")
 
+        self.image_layout = QVBoxLayout()
+        self.path_label = QLabel()
+        self.counter_label = QLabel()
+        self.label = QLabel()
+        self.setStyleSheet("QMainWindow {background-color: black;}")
+        self.label.setAlignment(Qt.AlignHCenter | Qt.AlignVCenter)
+        self.path_label.setTextInteractionFlags(Qt.TextSelectableByMouse)
+        self.path_label.setAlignment(Qt.AlignHCenter | Qt.AlignVCenter)
+        self.path_label.hide()
+        if self.images:
+            self._set_image(self.images.current)
+
+        self.button_layout.addWidget(self.counter_label)
         self.button_layout.addItem(QSpacerItem(0, 0, QSizePolicy.Expanding, QSizePolicy.Minimum))
+        self.button_layout.addWidget(self.path_label)
         self.button_layout.addWidget(self.prev_button)
         self.button_layout.addWidget(self.next_button)
 
-        self.image_layout = QVBoxLayout()
-        self.label = QLabel()
-        if self.images:
-            pixmap = QPixmap(self.images.current.filepath)
-            self.label.setPixmap(pixmap)
-        # self.label.setStyleSheet("QLabel {background-color: red;}")
-        self.label.setAlignment(Qt.AlignHCenter | Qt.AlignVCenter)
         self.image_layout.addWidget(self.label)
 
         self.setCentralWidget(self.central_widget)
         self.central_widget.setLayout(self.main_layout)
         self.main_layout.addLayout(self.check_box_layout)
         self.main_layout.addLayout(self.image_layout)
-
         self.main_layout.addLayout(self.button_layout)
+
+        self.timer = QTimer()
+        self.timer.timeout.connect(self.slide_show)
+
         self.next_button.clicked.connect(self.next_image)
         self.prev_button.clicked.connect(self.previous_image)
+        self.delete_check_box.clicked.connect(self.toggle_delete)
         self.showMaximized()
+
+    def load_directory(self):
+        pass
+
+    def contextMenuEvent(self, event):
+        menu = QMenu(self)
+        openAction = menu.addAction("Open in Preview")
+        action = menu.exec_(self.mapToGlobal(event.pos()))
+        if action == openAction:
+            subprocess.run([PLATFORMS[self.platform], self.images.current.filepath])
+
+    def change_timer_speed(self, increment=0):
+        if self.timer.isActive():
+            time_interval = self.time_interval + (increment * SLIDESHOW_INCREMENT)
+            if time_interval < MIN_SLIDESHOW_INTERVAL:
+                self.time_interval = MIN_SLIDESHOW_INTERVAL
+                self.timer.stop()
+                self.timer.start(self.time_interval)
+                print(self.time_interval)
+            elif time_interval != self.time_interval:
+                self.time_interval = time_interval
+                self.timer.stop()
+                self.timer.start(self.time_interval)
+                print(self.time_interval)
+
+    def toggle_timer(self):
+        if self.timer.isActive():
+            self.timer.stop()
+        else:
+            self.timer.start(self.time_interval)
+
+    def update_counter_label(self):
+        text = f'{self.images.current_count} / {self.images.length}'
+        self.counter_label.setText(text)
+
+    def shuffle(self):
+        self.images.shuffle()
+        self._set_image(self.images.current)
+
+    def start_slideshow(self):
+        if not self.timer.isActive():
+            self.timer.start(SLIDESHOW_INTERVAL)
+
+    def slide_show(self):
+        self.next_image()
+
+    def toggle_counter(self):
+        if self.counter_label.isHidden():
+            self.counter_label.show()
+        else:
+            self.counter_label.hide()
+
+    def toggle_delete(self):
+        self.images.current.delete = not self.images.current.delete
+        self.delete_check_box.setChecked(self.images.current.delete)
+
+    def toggle_path(self):
+        if self.path_label.isHidden():
+            path = self.images.current.filepath
+            self.path_label.setText(path)
+            self.path_label.show()
+        else:
+            self.path_label.hide()
 
     def next_image(self):
         self._set_image(self.images.next)
@@ -71,16 +163,36 @@ class PicBrowserGui(QMainWindow):
             self.images.current.width, MAX_IMAGE_HEIGHT, Qt.KeepAspectRatio)
         self.label.setPixmap(pixmap)
         self.delete_check_box.setChecked(image.delete)
+        self.path_label.setText(self.images.current.filepath)
+        self.update_counter_label()
 
     def keyPressEvent(self, event):
-        if event.key() == Qt.Key_Left:
+
+        if event.key() == Qt.Key_R and event.modifiers() == Qt.ControlModifier:
+            self.shuffle()
+        elif event.key() == Qt.Key_F and event.modifiers() == Qt.ControlModifier:
+            self.start_slideshow()
+        elif event.key() == Qt.Key_Left:
             self.previous_image()
-        if event.key() == Qt.Key_Right:
+        elif event.key() == Qt.Key_Right:
             self.next_image()
-        if event.key() == Qt.Key_Escape:
+        elif event.key() == Qt.Key_Escape:
             self.showMaximized()
-        if event.key() == Qt.Key_F:
+        elif event.key() == Qt.Key_C:
+            self.toggle_counter()
+        elif event.key() == Qt.Key_D:
+            self.toggle_delete()
+        elif event.key() == Qt.Key_F:
             self.showFullScreen()
+        elif event.key() == Qt.Key_P:
+            self.toggle_path()
+        elif event.key() == Qt.Key_Space:
+            self.toggle_timer()
+        elif event.key() == Qt.Key_Equal:
+            self.change_timer_speed(-1)
+        elif event.key() == Qt.Key_Minus:
+            self.change_timer_speed(1)
+
         event.accept()
 
 

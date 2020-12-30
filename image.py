@@ -1,5 +1,5 @@
 import random
-from PIL import Image
+from PIL import Image, UnidentifiedImageError
 from pathlib import Path
 
 EXTENSIONS = ['.jpg', '.JPG', '.jpeg', '.png']
@@ -17,11 +17,13 @@ class PBImage(object):
         self._set_dimensions()
 
     def _set_dimensions(self):
-        img = Image.open(self.filepath)
-        self.height = img.height
-        self.width = img.width
-        img.close()
-
+        try:
+            img = Image.open(self.filepath)
+            self.height = img.height
+            self.width = img.width
+            img.close()
+        except UnidentifiedImageError:
+            print(self.filepath)
 
 class PBImages(object):
 
@@ -39,6 +41,10 @@ class PBImages(object):
                 if img.height > self.max_height:
                     self.max_height = img.height
                 self.files.append(img)
+
+    @property
+    def current_count(self):
+        return self.index + 1
 
     @property
     def length(self):
