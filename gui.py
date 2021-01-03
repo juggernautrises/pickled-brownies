@@ -1,18 +1,21 @@
 import subprocess
 import sys
-from PyQt5.QtWidgets import (
-    QMainWindow, QApplication, QHBoxLayout,
-    QVBoxLayout, QWidget, QPushButton,
-    QSpacerItem, QSizePolicy, QCheckBox, QLabel, QMenuBar, QMenu, QAction
-)
-from PyQt5.QtGui import QPixmap
 from PyQt5.QtCore import Qt, QTimer
-import datetime
+from PyQt5.QtGui import QPixmap
+from PyQt5.QtWidgets import (
+    QAction, QApplication, QCheckBox, QFileDialog, QHBoxLayout, QLabel,
+    QMainWindow, QMenu, QMenuBar, QPushButton, QSpacerItem, QSizePolicy,
+    QVBoxLayout, QWidget
+)
+from image import PBImages
+
+
 MAX_IMAGE_HEIGHT = 600
-SLIDESHOW_INTERVAL = 1000
+SLIDESHOW_INTERVAL = 2000
 MIN_SLIDESHOW_INTERVAL = 1000
 SLIDESHOW_INCREMENT = 500
 PLATFORMS = {'darwin': 'open'}
+
 
 class PicBrowserGui(QMainWindow):
 
@@ -32,10 +35,13 @@ class PicBrowserGui(QMainWindow):
         self.menuBar = QMenuBar(self)
         self.menuBar.setNativeMenuBar(False)
         file_menu = QMenu(' &Stuff', self)
+        open_action = QAction("Open Directory        ctrl+r", self)
         shuffle_action = QAction("Shuffle          ctrl+r", self)
         slideshow_action = QAction("Slideshow     ctrl+f", self)
         shuffle_action.triggered.connect(self.shuffle)
         slideshow_action.triggered.connect(self.start_slideshow)
+        open_action.triggered.connect(self.load_directory)
+        file_menu.addAction(open_action)
         file_menu.addAction(shuffle_action)
         file_menu.addAction(slideshow_action)
         self.menuBar.addMenu(file_menu)
@@ -59,6 +65,7 @@ class PicBrowserGui(QMainWindow):
         self.path_label = QLabel()
         self.counter_label = QLabel()
         self.label = QLabel()
+        # TODO: replace with proper stylesheet
         self.setStyleSheet("QMainWindow {background-color: black;}")
         self.label.setAlignment(Qt.AlignHCenter | Qt.AlignVCenter)
         self.path_label.setTextInteractionFlags(Qt.TextSelectableByMouse)
@@ -72,7 +79,6 @@ class PicBrowserGui(QMainWindow):
         self.button_layout.addWidget(self.path_label)
         self.button_layout.addWidget(self.prev_button)
         self.button_layout.addWidget(self.next_button)
-
         self.image_layout.addWidget(self.label)
 
         self.setCentralWidget(self.central_widget)
@@ -90,13 +96,18 @@ class PicBrowserGui(QMainWindow):
         self.showMaximized()
 
     def load_directory(self):
-        pass
+        d = QFileDialog.getExistingDirectory()
+        if d:
+            images = PBImages(d)
+            if images.files:
+                self.images = images
+                self._set_image(self.images.current)
 
     def contextMenuEvent(self, event):
         menu = QMenu(self)
-        openAction = menu.addAction("Open in Preview")
+        preview_action = menu.addAction("Open in Preview")
         action = menu.exec_(self.mapToGlobal(event.pos()))
-        if action == openAction:
+        if action == preview_action:
             subprocess.run([PLATFORMS[self.platform], self.images.current.filepath])
 
     def change_timer_speed(self, increment=0):
@@ -106,12 +117,10 @@ class PicBrowserGui(QMainWindow):
                 self.time_interval = MIN_SLIDESHOW_INTERVAL
                 self.timer.stop()
                 self.timer.start(self.time_interval)
-                print(self.time_interval)
             elif time_interval != self.time_interval:
                 self.time_interval = time_interval
                 self.timer.stop()
                 self.timer.start(self.time_interval)
-                print(self.time_interval)
 
     def toggle_timer(self):
         if self.timer.isActive():
@@ -128,6 +137,14 @@ class PicBrowserGui(QMainWindow):
         self._set_image(self.images.current)
 
     def start_slideshow(self):
+        self.delete_check_box.hide()
+        self.prev_button.hide()
+        self.next_button.hide()
+        self.path_label.hide()
+        self.counter_label.hide()
+        # self.main_layout.removeItem(self.button_layout)
+        self.menuBar.hide()
+        self.showFullScreen()
         if not self.timer.isActive():
             self.timer.start(SLIDESHOW_INTERVAL)
 
@@ -158,6 +175,13 @@ class PicBrowserGui(QMainWindow):
     def previous_image(self):
         self._set_image(self.images.previous)
 
+    def _show_maximized(self):
+        self.delete_check_box.show()
+        self.prev_button.show()
+        self.next_button.show()
+        self.menuBar.show()
+        self.showMaximized()
+
     def _set_image(self, image):
         pixmap = QPixmap(image.filepath).scaled(
             self.images.current.width, MAX_IMAGE_HEIGHT, Qt.KeepAspectRatio)
@@ -172,12 +196,14 @@ class PicBrowserGui(QMainWindow):
             self.shuffle()
         elif event.key() == Qt.Key_F and event.modifiers() == Qt.ControlModifier:
             self.start_slideshow()
+        elif event.key() == Qt.Key_O and event.modifiers() == Qt.ControlModifier:
+            self.load_directory()
         elif event.key() == Qt.Key_Left:
             self.previous_image()
         elif event.key() == Qt.Key_Right:
             self.next_image()
         elif event.key() == Qt.Key_Escape:
-            self.showMaximized()
+            self._show_maximized()
         elif event.key() == Qt.Key_C:
             self.toggle_counter()
         elif event.key() == Qt.Key_D:

@@ -1,6 +1,6 @@
+from pathlib import Path
 import random
 from PIL import Image, UnidentifiedImageError
-from pathlib import Path
 
 EXTENSIONS = ['.jpg', '.JPG', '.jpeg', '.png']
 
@@ -33,7 +33,7 @@ class PBImages(object):
         self.index = 0
         self.max_height = 0
         self.max_width = 0
-        for f in self.source_dir.glob("**/*"):
+        for f in self.source_dir.glob("*"):
             if f.suffix in EXTENSIONS:
                 img = PBImage(f)
                 if img.width > self.max_width:
