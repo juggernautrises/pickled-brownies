@@ -11,7 +11,7 @@ from image import PBImages
 
 
 MAX_IMAGE_HEIGHT = 600
-SLIDESHOW_INTERVAL = 2000
+SLIDESHOW_INTERVAL = 3000
 MIN_SLIDESHOW_INTERVAL = 1000
 SLIDESHOW_INCREMENT = 500
 PLATFORMS = {'darwin': 'open'}
@@ -145,6 +145,7 @@ class PicBrowserGui(QMainWindow):
         # self.main_layout.removeItem(self.button_layout)
         self.menuBar.hide()
         self.showFullScreen()
+        self.setCursor(Qt.BlankCursor)
         if not self.timer.isActive():
             self.timer.start(SLIDESHOW_INTERVAL)
 
@@ -176,6 +177,7 @@ class PicBrowserGui(QMainWindow):
         self._set_image(self.images.previous)
 
     def _show_maximized(self):
+        self.unsetCursor()
         self.delete_check_box.show()
         self.prev_button.show()
         self.next_button.show()
@@ -209,6 +211,7 @@ class PicBrowserGui(QMainWindow):
         elif event.key() == Qt.Key_D:
             self.toggle_delete()
         elif event.key() == Qt.Key_F:
+            self.setCursor(Qt.BlankCursor)
             self.showFullScreen()
         elif event.key() == Qt.Key_P:
             self.toggle_path()
